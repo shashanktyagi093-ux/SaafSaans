@@ -19,7 +19,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
   let rawBody: unknown = req.body;
+  if (Buffer.isBuffer(rawBody)) {
+    rawBody = rawBody.toString('utf8');
+  }
   if (typeof rawBody === 'string') {
     try {
       rawBody = JSON.parse(rawBody);
