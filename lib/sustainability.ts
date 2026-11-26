@@ -1,4 +1,4 @@
-import type { DeterministicSwap, LifestyleProfile } from './types.js';
+import type { AqiAnalysis, DeterministicSwap, LifestyleProfile } from './types.js';
 
 // Average passenger car emission factor: 0.17 kg CO2 per km.
 const CAR_KG_CO2_PER_KM = 0.17;
@@ -185,5 +185,45 @@ export function summarizeWeeklyImpact(
     completedKgCo2,
     totalCarKmEquivalent: toCarKm(totalPossibleKgCo2),
     completedCarKmEquivalent: toCarKm(completedKgCo2),
+  };
+}
+
+export interface LifestyleImpactResult {
+  swaps: DeterministicSwap[];
+  totalPotentialKgCo2PerWeek: number;
+  totalCarKmEquivalent: number;
+  exposureReductionSummary: string;
+}
+
+/**
+ * Computes deterministic CO2 savings and an exposure-reduction summary
+ * combining the user's lifestyle profile with the analyzed AQI forecast.
+ */
+export function computeLifestyleImpact(
+  profile: LifestyleProfile,
+  airQuality: AqiAnalysis,
+): LifestyleImpactResult {
+  const swaps = calculateDeterministicSwaps(profile, airQuality.aqi);
+  const summary = summarizeWeeklyImpact(swaps);
+
+  const cleanStart = airQuality.cleanest2hWindow.startTime.slice(11, 16);
+  const cleanEnd = airQuality.cleanest2hWindow.endTime.slice(11, 16);
+  const worstStart = airQuality.worst2hWindow.startTime.slice(11, 16);
+  const worstEnd = airQuality.worst2hWindow.endTime.slice(11, 16);
+  const aqiDrop = Math.max(
+    0,
+    airQuality.worst2hWindow.avgAqi - airQuality.cleanest2hWindow.avgAqi,
+  );
+
+  const exposureReductionSummary =
+    aqiDrop > 0
+      ? `Shifting outdoor time from ${worstStart}–${worstEnd} (avg AQI ${airQuality.worst2hWindow.avgAqi}) to ${cleanStart}–${cleanEnd} (avg AQI ${airQuality.cleanest2hWindow.avgAqi}) lowers peak exposure by ${aqiDrop} AQI points.`
+      : `Air quality stays near AQI ${airQuality.aqi} (${airQuality.category}) across the next 24 hours; focus on indoor source control${profile.hasPurifier ? ' and smart purifier scheduling' : ''}.`;
+
+  return {
+    swaps,
+    totalPotentialKgCo2PerWeek: summary.totalPossibleKgCo2,
+    totalCarKmEquivalent: summary.totalCarKmEquivalent,
+    exposureReductionSummary,
   };
 }
